@@ -4,6 +4,7 @@ MODULE_VERS := 0.1.0
 MODULE_DEPS := \
 		setup.cfg \
 		setup.py \
+		tkpixelfont/geom/*.py \
 		tkpixelfont/*.py \
 
 FLAKE_MODULES := tkpixelfont
@@ -21,7 +22,7 @@ clean:
 	find . -name __pycache__ | xargs rm -r
 
 .PHONY: test
-test: flake8 lint
+test: flake8 lint unittest
 
 .PHONY: flake8
 flake8:
@@ -30,6 +31,10 @@ flake8:
 .PHONY: lint
 lint:
 	pylint -j2 $(LINT_MODULES)
+
+.PHONY: unittest
+unittest:
+	python3 -m unittest
 
 .PHONY: install
 install: $(WHEEL_PATH) | uninstall
