@@ -5,6 +5,7 @@ MODULE_DEPS := \
 		setup.cfg \
 		setup.py \
 		tkpixelfont/geom/*.py \
+		tkpixelfont/tk/*.py \
 		tkpixelfont/*.py \
 
 FLAKE_MODULES := tkpixelfont
