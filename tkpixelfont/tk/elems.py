@@ -37,6 +37,9 @@ class CanvasElem(Elem):
     def set_fill(self, fill):
         self._canvas._set_fill(self, fill)
 
+    def set_outline(self, outline):
+        self._canvas._set_outline(self, outline)
+
     def hide(self):
         self._canvas._hide(self)
 
@@ -114,6 +117,9 @@ class Canvas:
     def _set_fill(self, elem, fill):
         self._canvas.itemconfig(elem._elem_id, fill=fill)
 
+    def _set_outline(self, elem, outline):
+        self._canvas.itemconfig(elem._elem_id, outline=outline)
+
     def _coords(self, elem, *args):
         self._canvas.coords(elem._elem_id, *args)
 
@@ -167,6 +173,10 @@ class Canvas:
 
     def add_window(self, x, y, widget, **kwargs):
         self._canvas.create_window(x, y, window=widget, **kwargs)
+
+    def add_image(self, p0, image, **kwargs):
+        elem_id = self._canvas.create_image((p0.x, p0.y), image=image, **kwargs)
+        return CanvasElem(self, elem_id, p0.x, p0.y)
 
     def delete(self, tag_or_id):
         self._canvas.delete(tag_or_id)

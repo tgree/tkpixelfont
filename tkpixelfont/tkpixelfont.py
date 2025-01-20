@@ -4,6 +4,7 @@ import tkinter.font
 from .tk.elems import Canvas
 from .workspace import Workspace
 from .geom import Vec, Rect
+from .font import Font
 
 
 WINDOW_X        = 10
@@ -56,17 +57,29 @@ DM_ERASING = 2
 class MainCanvas(Canvas):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+
+        self.font = Font(32, 32)
+        self.selected_char = 0
+        self.selected_glyph = self.font.get_glyph(self.selected_char)
+        self.image_elems = [None] * 256
+        self.image_points = []
+
         f = tkinter.font.Font(family='Arial', size=12)
 
         for y in range(16):
             for x in range(16):
-                p = Vec(4, 4) + Vec(x * 34, y * 50)
-                r = Rect(p, p + Vec(32, 32))
+                p = Vec(4, 4) + Vec(x * 36, y * 50)
+                r = Rect(p, p + Vec(33, 33))
                 self.add_rectangle(r)
-                self.add_text(p + Vec(16, 33), text=CHR_MAP[y*16 + x],
-                              anchor='n', font=f)
 
-        p = Vec(16, 4) + Vec(16 * 34 + 4, 0)
+                c = y * 16 + x
+                self.add_text(p + Vec(17, 35), text=CHR_MAP[c], anchor='n',
+                              font=f)
+
+                self.image_points.append(p)
+                self.render_char(c)
+
+        p = Vec(16, 4) + Vec(16 * 36 + 4, 0)
         r = Rect(p, p + Vec(16 * 32 + 2, 16 * 32 + 2))
         self.add_rectangle(r)
 
@@ -76,8 +89,10 @@ class MainCanvas(Canvas):
             for x in range(32):
                 p = self.pixel_rect.p0 + Vec(x * 16, y * 16)
                 r = Rect(p, p + Vec(14, 14))
-                self.pixel_elems.append(self.add_rectangle(r, fill='black'))
-                self.pixel_elems[-1].hide()
+                fill = ('black'
+                        if self.selected_glyph.get_pixel(x, y) else 'white')
+                self.pixel_elems.append(self.add_rectangle(r, fill=fill,
+                                                           outline=fill))
 
         self.draw_mode  = DM_NONE
         self.erasing    = False
@@ -94,19 +109,34 @@ class MainCanvas(Canvas):
         px = (x - self.pixel_rect.p0.x) // 16
         py = (y - self.pixel_rect.p0.y) // 16
         if self.draw_mode == DM_ERASING:
-            self.pixel_elems[py * 32 + px].hide()
+            self.selected_glyph.set_pixel(px, py, 0)
+            self.pixel_elems[py * 32 + px].configure(fill='white',
+                                                     outline='white')
+            self.render_char(self.selected_char)
         elif self.draw_mode == DM_DRAWING:
-            self.pixel_elems[py * 32 + px].show()
+            self.selected_glyph.set_pixel(px, py, 1)
+            self.pixel_elems[py * 32 + px].configure(fill='black',
+                                                     outline='black')
+            self.render_char(self.selected_char)
+
+    def render_char(self, c):
+        if self.image_elems[c] is not None:
+            self.delete_elem(self.image_elems[c])
+
+        image = self.font.get_glyph(c).image
+        self.image_elems[c] = self.add_image(self.image_points[c] + Vec(1, 1),
+                                             image, anchor='nw')
 
     def handle_mouse_down(self, _e, x, y):
         p = Vec(x, y)
         if not self.pixel_rect.overlaps_point(p):
             return
 
+        self.selected_glyph = self.font.instantiate(self.selected_char)
+
         px = (x - self.pixel_rect.p0.x) // 16
         py = (y - self.pixel_rect.p0.y) // 16
-        pe = self.pixel_elems[py * 32 + px]
-        if pe.is_visible():
+        if self.selected_glyph.get_pixel(px, py):
             self.draw_mode = DM_ERASING
         else:
             self.draw_mode = DM_DRAWING
