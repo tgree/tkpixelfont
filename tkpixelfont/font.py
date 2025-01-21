@@ -8,7 +8,7 @@ class Font:
         self.glyphs    = [None] * 256
 
         self.glyphs[0] = Glyph(0, w, h)
-        self.glyphs[0].set_all_pixels(0)
+        self.glyphs[0].set_all_pixels(1)
 
     def get_glyph(self, c):
         return self.glyphs[c] or self.glyphs[0]

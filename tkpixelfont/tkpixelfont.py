@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import tkinter.font
+import tkinter.filedialog
 
 from .tk.elems import Canvas
 from .workspace import Workspace
@@ -7,15 +8,21 @@ from .geom import Vec, Rect
 from .font import Font
 
 
-WINDOW_X        = 10
-WINDOW_Y        = 50
-WINDOW_W        = 1600
-WINDOW_H        = 804
+ASCII_W         = 38
+ASCII_H         = 52
+
+WINDOW_X        = 5
+WINDOW_Y        = 45
+WINDOW_W        = 1500
+WINDOW_H        = ASCII_H * 16 + 4
+
+FONT_INFO_X     = 16 * ASCII_W + 16 * 32 + 32
+FONT_INFO_Y     = 4
 
 
 CHR_MAP = [
       '00',  '01',  '02',  '03',  '04',  '05',  '06',  '07',  # noqa: E131
-    '\\bs',  '09', '\\n',  '0B',  '0C', '\\r',  '0E',  '0F',  # noqa: E131
+     '\\b', '\\t', '\\n',  '0B',  '0C', '\\r',  '0E',  '0F',  # noqa: E131
       '10',  '11',  '12',  '13',  '14',  '15',  '16',  '17',  # noqa: E131
       '18',  '19',  '1A', 'ESC',  '1C',  '1D',  '1E',  '1F',  # noqa: E131
       'SP',   '!',   '"',   '#',   '$',   '%',   '&',  '\'',  # noqa: E131
@@ -59,43 +66,74 @@ class MainCanvas(Canvas):
         super().__init__(*args, **kwargs)
 
         self.font = Font(32, 32)
-        self.selected_char = 0
-        self.selected_glyph = self.font.get_glyph(self.selected_char)
+        self.selected_char = None
+        self.selected_glyph = None
         self.image_elems = [None] * 256
         self.image_points = []
 
-        f = tkinter.font.Font(family='Arial', size=12)
+        monaco_font    = tkinter.font.Font(family='Monaco', size=12)
+        arial_b12_font = tkinter.font.Font(family='Arial', size=12,
+                                           weight='bold')
+        arial_b10_font = tkinter.font.Font(family='Arial', size=10,
+                                           weight='bold')
+        arial_10_font  = tkinter.font.Font(family='Arial', size=10)
 
+        # Render the grid of ASCII characters.
+        self.ascii_grid_rect = Rect(Vec(4, 4), Vec(4 + 16 * ASCII_W,
+                                                   4 + 16 * ASCII_H))
         for y in range(16):
             for x in range(16):
-                p = Vec(4, 4) + Vec(x * 36, y * 50)
+                p = self.ascii_grid_rect.p0 + Vec(x * ASCII_W, y * ASCII_H)
                 r = Rect(p, p + Vec(33, 33))
                 self.add_rectangle(r)
 
                 c = y * 16 + x
-                self.add_text(p + Vec(17, 35), text=CHR_MAP[c], anchor='n',
-                              font=f)
+                self.add_text(p + Vec(17, 33), text=CHR_MAP[c], anchor='n',
+                              font=monaco_font)
 
                 self.image_points.append(p)
                 self.render_char(c)
 
-        p = Vec(16, 4) + Vec(16 * 36 + 4, 0)
+        # Generate a rectangle for the selected character in the ASCII grid.
+        p0 = self.ascii_grid_rect.p0 - Vec(2, 2)
+        r = Rect(p0, p0 + Vec(38, 51))
+        self.selection_rect = self.add_rectangle(r, fill='', width=2)
+
+        # Draw the outline of the pixel grid.
+        p = Vec(16, 4) + Vec(16 * ASCII_W + 4, 0)
         r = Rect(p, p + Vec(16 * 32 + 2, 16 * 32 + 2))
         self.add_rectangle(r)
 
+        # Generate the pixel grid individual pixel rectangles.
         self.pixel_elems = []
         self.pixel_rect = Rect(r.p0 + Vec(2, 2), r.p1 - Vec(2, 2))
         for y in range(32):
             for x in range(32):
                 p = self.pixel_rect.p0 + Vec(x * 16, y * 16)
                 r = Rect(p, p + Vec(14, 14))
-                fill = ('black'
-                        if self.selected_glyph.get_pixel(x, y) else 'white')
-                self.pixel_elems.append(self.add_rectangle(r, fill=fill,
-                                                           outline=fill))
+                self.pixel_elems.append(self.add_rectangle(r))
+
+        # Generate the font info panel.
+        v = Vec(FONT_INFO_X, FONT_INFO_Y)
+        self.add_text(v, text='FONT INFO', anchor='nw', font=arial_b12_font)
+        v += Vec(0, 20)
+        self.add_text(v, text='NAME', anchor='nw', font=arial_b10_font)
+        v += Vec(0, 12)
+        self.fi_name_sv = tkinter.StringVar()
+        self.fi_name_entry = self.add_entry(font=arial_10_font, width=40,
+                                            textvariable=self.fi_name_sv)
+        self.fi_name_entry.configure(highlightthickness=3)
+        self.add_window(v.x + 8, v.y, self.fi_name_entry, anchor='nw')
+        v += Vec(0, 28)
+        self.add_text(v, text='WIDTH', anchor='nw', font=arial_b10_font)
+        v += Vec(0, 14)
+        self.add_text(v, text='HEIGHT', anchor='nw', font=arial_b10_font)
 
         self.draw_mode  = DM_NONE
         self.erasing    = False
+
+        # Select character 0.
+        self.select_char(0)
 
     def update_pixel(self, x, y):
         '''
@@ -109,15 +147,17 @@ class MainCanvas(Canvas):
         px = (x - self.pixel_rect.p0.x) // 16
         py = (y - self.pixel_rect.p0.y) // 16
         if self.draw_mode == DM_ERASING:
-            self.selected_glyph.set_pixel(px, py, 0)
-            self.pixel_elems[py * 32 + px].configure(fill='white',
-                                                     outline='white')
-            self.render_char(self.selected_char)
+            if self.selected_glyph.get_pixel(px, py):
+                self.selected_glyph.set_pixel(px, py, 0)
+                self.pixel_elems[py * 32 + px].configure(fill='white',
+                                                         outline='white')
+                self.render_char(self.selected_char)
         elif self.draw_mode == DM_DRAWING:
-            self.selected_glyph.set_pixel(px, py, 1)
-            self.pixel_elems[py * 32 + px].configure(fill='black',
-                                                     outline='black')
-            self.render_char(self.selected_char)
+            if not self.selected_glyph.get_pixel(px, py):
+                self.selected_glyph.set_pixel(px, py, 1)
+                self.pixel_elems[py * 32 + px].configure(fill='black',
+                                                         outline='black')
+                self.render_char(self.selected_char)
 
     def render_char(self, c):
         if self.image_elems[c] is not None:
@@ -127,11 +167,7 @@ class MainCanvas(Canvas):
         self.image_elems[c] = self.add_image(self.image_points[c] + Vec(1, 1),
                                              image, anchor='nw')
 
-    def handle_mouse_down(self, _e, x, y):
-        p = Vec(x, y)
-        if not self.pixel_rect.overlaps_point(p):
-            return
-
+    def handle_pixel_rect_click(self, x, y):
         self.selected_glyph = self.font.instantiate(self.selected_char)
 
         px = (x - self.pixel_rect.p0.x) // 16
@@ -142,6 +178,39 @@ class MainCanvas(Canvas):
             self.draw_mode = DM_DRAWING
 
         self.update_pixel(x, y)
+
+    def select_char(self, c):
+        g = self.font.instantiate(c)
+        self.render_char(c)
+
+        p0 = self.ascii_grid_rect.p0 - Vec(2, 2)
+        x  = c % 16
+        y  = c // 16
+        self.selection_rect.move_to(p0.x + x * ASCII_W, p0.y + y * ASCII_H)
+
+        self.selected_char = c
+        self.selected_glyph = g
+        w = self.selected_glyph.width
+        h = self.selected_glyph.height
+        for pe in self.pixel_elems:
+            pe.configure(fill='white', outline='white')
+        for y in range(h):
+            for x in range(w):
+                if g.get_pixel(x, y):
+                    self.pixel_elems[y * 32 + x].configure(fill='black',
+                                                           outline='black')
+
+    def handle_ascii_grid_rect_click(self, x, y):
+        px = (x - self.ascii_grid_rect.p0.x) // ASCII_W
+        py = (y - self.ascii_grid_rect.p0.y) // ASCII_H
+        self.select_char(py * 16 + px)
+
+    def handle_mouse_down(self, _e, x, y):
+        p = Vec(x, y)
+        if self.pixel_rect.overlaps_point(p):
+            self.handle_pixel_rect_click(x, y)
+        elif self.ascii_grid_rect.overlaps_point(p):
+            self.handle_ascii_grid_rect_click(x, y)
 
     def handle_mouse_up(self, _e, _x, _y):
         self.draw_mode = DM_NONE
