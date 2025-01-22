@@ -16,7 +16,7 @@ class GridCanvas(Canvas):
         self.selected_glyph = None
 
         # Draw the outline of the pixel grid.
-        p = Vec(16, 4)
+        p = Vec(15, 4)
         r = Rect(p, p + Vec(16 * 32 + 2, 16 * 32 + 2))
         self.add_rectangle(r)
 

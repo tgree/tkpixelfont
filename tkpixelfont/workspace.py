@@ -4,6 +4,7 @@ from .tk.elems import TKBase
 from .document import Document
 from .ascii_canvas import ASCIICanvas
 from .grid_canvas import GridCanvas
+from .info_canvas import InfoCanvas
 
 
 class Workspace(TKBase):
@@ -25,6 +26,12 @@ class Workspace(TKBase):
         gch = 16 * 32 + 2
         self.grid_canvas = self.add_canvas(gcw, gch,
                                            GridCanvas, sticky='nws', column=1,
+                                           row=0)
+
+        icw = 390
+        ich = 16 * 32 + 2
+        self.info_canvas = self.add_canvas(icw, ich,
+                                           InfoCanvas, sticky='nws', column=2,
                                            row=0)
 
         self.register_mouse_down(self.handle_mouse_down)
