@@ -224,12 +224,12 @@ class TKBase:
 
         self._root.mainloop()
 
-    def add_canvas(self, width, height, column=0, row=0, sticky=None,
-                   _cls=Canvas):
+    def add_canvas(self, width, height, _cls, *args, column=0, row=0,
+                   sticky=None, **kwargs):
         c = tkinter.Canvas(self._root, bd=0, highlightthickness=0, width=width,
                            height=height)
         c.grid(column=column, row=row, sticky=sticky)
-        return _cls(self, c, width, height)
+        return _cls(*args, self, c, width, height, **kwargs)
 
     def register_handler(self, event_type, handler):
         self._root.bind(event_type, handler)
