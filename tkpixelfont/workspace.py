@@ -1,28 +1,48 @@
 #!/usr/bin/env python3
 from .tk.elems import TKBase
 
+from .document import Document
 from .ascii_canvas import ASCIICanvas
+from .grid_canvas import GridCanvas
 
 
 class Workspace(TKBase):
     def __init__(self, x, y, w, h, ascii_w, ascii_h):
         super().__init__()
 
-        self.set_title('tkpixelfont')
+        self.document = Document()
+        self.selected_char = None
+        self.selected_glyph = None
 
+        self.set_title('tkpixelfont')
         self.set_geometry(x, y, w, h)
-        self.ascii_canvas = self.add_canvas(w, h, ASCIICanvas, ascii_w, ascii_h,
-                                            sticky='nws')
+
+        acw = 16 * ascii_w + 4
+        ach = 16 * ascii_h + 4
+        self.ascii_canvas = self.add_canvas(acw, ach,
+                                            ASCIICanvas, ascii_w, ascii_h,
+                                            sticky='nws', column=0, row=0)
+
+        # gcw = 16 + 16 * 32 + 2
+        # gch = 16 * 32 + 2
+        # self.grid_canvas = self.add_canvas(gcw, gch,
+        #                                    GridCanvas, sticky='nws', column=1,
+        #                                    row=0)
 
         self.register_mouse_down(self.handle_mouse_down)
         self.register_mouse_up(self.handle_mouse_up)
         self.register_mouse_moved(self.handle_mouse_moved)
 
-        self.ascii_canvas.focus_set()
+    def select_char(self, c):
+        g = self.document.font.instantiate(c)
+        self.ascii_canvas.update_image(c)
+        self.ascii_canvas.select_char(c)
+        # self.grid_canvas.select_char(c)
 
     def handle_mouse_down(self, _, e, x, y):
         if e.widget == self.ascii_canvas._canvas:
-            self.ascii_canvas.handle_mouse_down(x, y)
+            c = self.ascii_canvas.pos_to_char(x, y)
+            self.select_char(c)
 
     def handle_mouse_up(self, _, e, x, y):
         if e.widget == self.ascii_canvas._canvas:

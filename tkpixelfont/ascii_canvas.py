@@ -3,7 +3,6 @@ import tkinter.font
 
 from .tk.elems import Canvas
 from .geom import Vec, Rect
-from .font import Font
 
 
 CHR_MAP = [
@@ -49,22 +48,13 @@ class ASCIICanvas(Canvas):
         self.ascii_w = ascii_w
         self.ascii_h = ascii_h
 
-        self.font = Font(32, 32)
-        self.selected_char = None
-        self.selected_glyph = None
-        self.image_elems = [None] * 256
-        self.image_points = []
 
-        monaco_font    = tkinter.font.Font(family='Monaco', size=12)
-        arial_b12_font = tkinter.font.Font(family='Arial', size=12,
-                                           weight='bold')
-        arial_b10_font = tkinter.font.Font(family='Arial', size=10,
-                                           weight='bold')
-        arial_10_font  = tkinter.font.Font(family='Arial', size=10)
+        monaco_font = tkinter.font.Font(family='Monaco', size=12)
 
         # Render the grid of ASCII characters.
         self.ascii_grid_rect = Rect(Vec(4, 4), Vec(4 + 16 * ascii_w,
                                                    4 + 16 * ascii_h))
+        self.image_elems = []
         for y in range(16):
             for x in range(16):
                 p = self.ascii_grid_rect.p0 + Vec(x * ascii_w, y * ascii_h)
@@ -75,45 +65,37 @@ class ASCIICanvas(Canvas):
                 self.add_text(p + Vec(17, 33), text=CHR_MAP[c], anchor='n',
                               font=monaco_font)
 
-                self.image_points.append(p)
-                self.render_char(c)
+                image = self._workspace.document.font.get_glyph(c).image
+                self.image_elems.append(self.add_image(p + Vec(1, 1), image,
+                                                       anchor='nw'))
 
         # Generate a rectangle for the selected character in the ASCII grid.
         p0 = self.ascii_grid_rect.p0 - Vec(2, 2)
         r = Rect(p0, p0 + Vec(38, 51))
         self.selection_rect = self.add_rectangle(r, fill='', width=2)
 
-    def render_char(self, c):
-        if self.image_elems[c] is not None:
-            self.delete_elem(self.image_elems[c])
-
-        image = self.font.get_glyph(c).image
-        self.image_elems[c] = self.add_image(self.image_points[c] + Vec(1, 1),
-                                             image, anchor='nw')
+    def update_image(self, c):
+        '''
+        Updates the image for this character in the ASCII grid to whatever the
+        latest glyph render is.
+        '''
+        image = self._workspace.document.font.get_glyph(c).image
+        self.image_elems[c].configure(image=image)
 
     def select_char(self, c):
-        g = self.font.instantiate(c)
-        self.render_char(c)
-
+        '''
+        Draw the selection rectangle around the specified character.
+        '''
         p0 = self.ascii_grid_rect.p0 - Vec(2, 2)
         x  = c % 16
         y  = c // 16
         self.selection_rect.move_to(p0.x + x * self.ascii_w,
                                     p0.y + y * self.ascii_h)
 
-        self.selected_char = c
-        self.selected_glyph = g
-        w = self.selected_glyph.width
-        h = self.selected_glyph.height
-        for pe in self.pixel_elems:
-            pe.configure(fill='white', outline='white')
-        for y in range(h):
-            for x in range(w):
-                if g.get_pixel(x, y):
-                    self.pixel_elems[y * 32 + x].configure(fill='black',
-                                                           outline='black')
-
-    def handle_mouse_down(self, x, y):
+    def pos_to_char(self, x, y):
+        '''
+        Convert a position in canvas coordinates to a character value.
+        '''
         px = (x - self.ascii_grid_rect.p0.x) // self.ascii_w
         py = (y - self.ascii_grid_rect.p0.y) // self.ascii_h
-        self.select_char(py * 16 + px)
+        return py * 16 + px

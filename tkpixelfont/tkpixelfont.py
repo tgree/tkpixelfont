@@ -12,8 +12,7 @@ WINDOW_H        = ASCII_H * 16 + 4
 
 
 def main():
-    w = Workspace(WINDOW_X, WINDOW_Y, WINDOW_W, WINDOW_H, ASCII_W,
-                  ASCII_H)
+    w = Workspace(WINDOW_X, WINDOW_Y, WINDOW_W, WINDOW_H, ASCII_W, ASCII_H)
     w.mainloop()
 
 
